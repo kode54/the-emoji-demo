@@ -26,16 +26,16 @@ define shelldrop
 endef
 
 4klang/4klang.o: 4klang/4klang.asm 4klang/4klang.inc
-	cd 4klang && yasm -fmacho 4klang.asm
+	cd 4klang && yasm -fmacho64 4klang.asm
 
 shader.minified.frag: shader.frag Makefile
 	mono /Users/will/Downloads/shader_minifier.exe shader.frag -v -o shader.minified.frag --no-renaming-list I,main
 
 textmode-debug: main.c shader.minified.frag 4klang/4klang.o Makefile
-	clang main.c 4klang/4klang.o -o textmode-debug -O3 -framework OpenAL -framework OpenGL -arch i386 -DDEBUG -DHAS_AUDIO -DLOAD_AUDIO
+	clang main.c 4klang/4klang.o -o textmode-debug -O3 -framework OpenAL -framework OpenGL -DDEBUG -DHAS_AUDIO -DLOAD_AUDIO
 
 textmode-final: main.c shader.minified.frag 4klang/4klang.o Makefile
-	clang main.c 4klang/4klang.o -o textmode-final -O3 -Wl,-dead_strip -framework OpenAL -framework OpenGL -arch i386 -DHAS_AUDIO
+	clang main.c 4klang/4klang.o -o textmode-final -O3 -Wl,-dead_strip -framework OpenAL -framework OpenGL -DHAS_AUDIO
 	strip textmode-final
 	$(call shelldrop,textmode-final)
 

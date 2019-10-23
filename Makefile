@@ -17,7 +17,8 @@ yx-the-emoji-demo.zip: textmode-final nfo.txt
 define shelldrop
 	@strip $(1)
 	@mv $(1) '__'
-	@gzip -v -9 '__'
+	@7za a -tgzip -mx=9 '__.gz' '__'
+	@rm '__'
 	@echo "#!/bin/sh" > $(1)
 	@echo "cp \044\060 /tmp/z;(sed 1,2d \044\060|zcat" >> $(1)
 	@cat '__.gz' >> $(1)

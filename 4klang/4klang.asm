@@ -239,11 +239,11 @@ go4kTransformValues:
 	xor		rcx, rcx
 	xor		rax, rax
 	mov		rdx, qword go4k_transformed_values
+	mov		r9, qword c_i128
 go4kTransformValues_loop:	
 	lodsb	
 	push	rax
-	fild	qword [rsp]
-	mov	r9, qword c_i128
+	fild	dword [rsp]
 	fmul	dword [r9]
 	fstp	dword [rdx+rcx*4]
 	pop		rax
@@ -308,6 +308,7 @@ export_func	go4kENV_func@0
 	call	go4kTransformValues
 %ifdef GO4K_USE_ENV_CHECK
 ; check if current note still active
+	xor		rax, rax
 	mov		eax, dword [rcx-4]
 	test	eax, eax
 	jne		go4kENV_func_do
@@ -315,11 +316,13 @@ export_func	go4kENV_func@0
 	ret
 %endif
 go4kENV_func_do:
+	xor		rax, rax
 	mov		eax, dword [rcx-8]					; // is the instrument in release mode (note off)?
 	test	eax, eax
 	je		go4kENV_func_process
 	mov		dword [WRK+go4kENV_wrk.state], ENV_STATE_RELEASE
 go4kENV_func_process:	
+	xor		rax, rax
 	mov		eax, dword [WRK+go4kENV_wrk.state]
 	fld		dword [WRK+go4kENV_wrk.level]		; //	val		-
 ; // check for sustain state	
@@ -504,6 +507,7 @@ export_func	go4kVCO_func@0
 	call	go4kTransformValues
 %ifdef GO4K_USE_VCO_CHECK
 ; check if current note still active
+	xor		rax, rax
 	mov		eax, dword [rcx-4]
 	test	eax, eax
 	jne		go4kVCO_func_do
@@ -668,6 +672,7 @@ export_func	go4kVCF_func@0
 	call	go4kTransformValues
 %ifdef GO4K_USE_VCF_CHECK
 ; check if current note still active
+	xor		rax, rax
 	mov		eax, dword [rcx-4]
 	test	eax, eax
 	jne		go4kVCF_func_do
@@ -779,13 +784,14 @@ export_func	go4kDST_func@0
 	call	go4kTransformValues
 %ifdef GO4K_USE_DST_CHECK
 ; check if current note still active
+	xor		rax, rax
 	mov		eax, dword [rcx-4]
 	test	eax, eax
 	jne		go4kDST_func_do
 	ret	
 go4kDST_func_do:
 %endif
-	movzx	eax, byte [VAL-1]				; // get type flag
+	movzx	rax, byte [VAL-1]				; // get type flag
 %ifdef	GO4K_USE_DST_SH
 	fld		dword [rdx+go4kDST_val.snhfreq]	; //	snh		in
 %ifdef 	GO4K_USE_DST_MOD_SH	
@@ -972,6 +978,7 @@ go4kDLL_func_buffer_nowrap1:
 	fld		dword [WRK+rax*4+go4kDLL_wrk.buffer];//	cout		in'			out		
 
 %ifdef GO4K_USE_DLL_CHORUS	
+	xor	rax, rax
 	mov 	eax, dword [WRK+go4kDLL_wrk.index]
 %endif	
 	
@@ -1140,7 +1147,7 @@ export_func	go4kFST_func@0
 	fadd	st0
 	fmul	st1
 	lodsw											
-	and		eax, 0x00003fff					; // eax is destination slot
+	and		rax, 0x00003fff					; // eax is destination slot
 	test	word [VAL-2], FST_ADD
 	jz		go4kFST_func_set
 	fadd	dword [rcx+rax*4]
@@ -1214,10 +1221,10 @@ go4kFSTG_func_do:
 	fadd	st0
 	fmul	st1	
 	lodsw											
-	and		eax, 0x00003fff					; // eax is destination slot
+	and		rax, 0x00003fff					; // eax is destination slot
+	mov	r9, qword go4k_synth_wrk
 	test	word [VAL-2], FST_ADD
 	jz		go4kFSTG_func_set
-	mov	r9, qword go4k_synth_wrk
 	fadd	dword [r9+rax*4]
 go4kFSTG_func_set:	
 %if MAX_VOICES > 1	
@@ -1452,7 +1459,8 @@ go4kRenderVoices:
 	push	VAL								; // save current instrument values index
 %endif	
 	call	go4k_VM_process					; //  call synth vm for instrument voices
-	mov 	rax, qword [rcx+go4kENV_wrk.state]
+	xor	rax, rax
+	mov 	eax, dword [rcx+go4kENV_wrk.state]
 	cmp		al, byte ENV_STATE_OFF
 	jne		go4kRenderVoices_next
 	xor		rax, rax
@@ -1468,7 +1476,7 @@ go4kRenderVoices_next:
 	shr		rax, 8							; // every 256th sample = ~ 172 hz
 	shl		rax, 5							; // for 16 instruments a 2 voices
 	add		rax, qword [rsp]				
-	add		rax, dword [rsp]				; // + 2*currentinstrument+0
+	add		rax, qword [rsp]				; // + 2*currentinstrument+0
 %ifdef GO4K_USE_ENVELOPE_RECORDINGS
 	mov		edx, dword [rcx+go4kENV_wrk.level]
 	mov		r9, qword __4klang_envelope_buffer
@@ -1483,7 +1491,8 @@ go4kRenderVoices_next:
 
 %if MAX_VOICES > 1			
 	call	go4k_VM_process					; //  call synth vm for instrument voices
-	mov 	rax, qword [rcx+go4kENV_wrk.state]
+	xor	rax, rax
+	mov 	eax, dword [rcx+go4kENV_wrk.state]
 	cmp		al, byte ENV_STATE_OFF
 	jne		go4k_render_instrument_next2
 	xor		rax, rax
@@ -1494,8 +1503,8 @@ go4k_render_instrument_next2:
 	mov		rax, qword [rsp+32]				; // get current tick
 	shr		rax, 8							; // every 256th sample = ~ 172 hz
 	shl		rax, 5							; // for 16 instruments a 2 voices
-	add		rax, dword [rsp]				
-	add		rax, dword [rsp]				; // + 2*currentinstrument+0
+	add		rax, qword [rsp]				
+	add		rax, qword [rsp]				; // + 2*currentinstrument+0
 %ifdef GO4K_USE_ENVELOPE_RECORDINGS
 	mov		edx, dword [rcx+go4kENV_wrk.level]
 	mov		r9, qword __4klang_envelope_buffer

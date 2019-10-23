@@ -38,7 +38,6 @@ bits	64
 	push rcx
 	push rdx
 	push rbx
-	sub rsp, 8
 	push rbp
 	push rsi
 	push rdi
@@ -48,7 +47,6 @@ bits	64
 	pop rdi
 	pop rsi
 	pop rbp
-	add rsp, 8
 	pop rbx
 	pop rdx
 	pop rcx
@@ -78,7 +76,7 @@ _go4k_delay_buffer		resd	16*16*go4kDLL_wrk.size
 
 %ifdef AUTHORING
 global __4klang_current_tick
-__4klang_current_tick	resq	0
+__4klang_current_tick	resq	1
 %endif
 
 %ifdef GO4K_USE_ENVELOPE_RECORDINGS
@@ -1412,13 +1410,14 @@ go4kUpdateInstrument:
 	jl		short go4kUpdateInstrument_done
 %if MAX_VOICES > 1
 	my_pushad
-	xchg	eax, dword [go4k_voiceindex + rcx*4]
+	mov	r9, qword go4k_voiceindex
+	xchg	eax, dword [r9 + rcx*4]
 	test	eax, eax
 	je		go4kUpdateInstrument_newNote
 	add		rdi, go4k_instrument.size
 go4kUpdateInstrument_newNote:
 	xor		al,1
-	xchg	dword [go4k_voiceindex + rcx*4], eax
+	xchg	dword [r9 + rcx*4], eax
 %endif	
 	my_pushad
 	xor		rax, rax
@@ -1472,11 +1471,13 @@ go4kRenderVoices_next:
 	add		rax, dword [rsp]				; // + 2*currentinstrument+0
 %ifdef GO4K_USE_ENVELOPE_RECORDINGS
 	mov		edx, dword [rcx+go4kENV_wrk.level]
-	mov		dword [__4klang_envelope_buffer+rax*4], edx
+	mov		r9, qword __4klang_envelope_buffer
+	mov		dword [r9+rax*4], edx
 %endif	
 %ifdef GO4K_USE_NOTE_RECORDINGS
 	mov		edx, dword [rcx-4]
-	mov		dword [__4klang_note_buffer+rax*4], edx
+	mov		r9, qword __4klang_note_buffer
+	mov		dword [r9+rax*4], edx
 %endif		
 %endif
 
@@ -1497,11 +1498,13 @@ go4k_render_instrument_next2:
 	add		rax, dword [rsp]				; // + 2*currentinstrument+0
 %ifdef GO4K_USE_ENVELOPE_RECORDINGS
 	mov		edx, dword [rcx+go4kENV_wrk.level]
-	mov		dword [__4klang_envelope_buffer+rax*4+4], edx
+	mov		r9, qword __4klang_envelope_buffer
+	mov		dword [r9+rax*4+4], edx
 %endif	
 %ifdef GO4K_USE_NOTE_RECORDINGS
 	mov		edx, dword [rcx-4]
-	mov		dword [__4klang_note_buffer+rax*4+4], edx
+	mov		r9, qword __4klang_note_buffer
+	mov		dword [r9+rax*4+4], edx
 %endif		
 %endif
 
@@ -1524,7 +1527,12 @@ export_func	_4klang_render
 %endif
 	my_pushad
 	mov		r10, rdi
+%ifdef SINGLE_TICK_RENDERING
+	mov		r9, qword __4klang_current_tick
+	mov		rcx, qword [r9]
+%else
 	xor		rcx, rcx
+%endif
 %ifdef GO4K_USE_BUFFER_RECORDINGS		
 	push	rcx
 %endif	
@@ -1655,10 +1663,17 @@ go4k_render_nogroove:
 	pop		rcx	
 	inc		rcx
 %ifdef AUTHORING
-	mov		qword[__4klang_current_tick], rcx
+	mov		r9, qword __4klang_current_tick
+	mov		qword[r9], rcx
 %endif
 	cmp		rcx, dword MAX_TICKS
+%ifdef SINGLE_TICK_RENDERING
+	jl		no_loop_yet
+	mov		qword[r9], 0
+no_loop_yet:
+%else
 	jl		go4k_render_tickloop
+%endif
 %ifdef GO4K_USE_BUFFER_RECORDINGS	
 	pop		rcx
 %endif	

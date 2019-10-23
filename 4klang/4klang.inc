@@ -2,6 +2,8 @@
    global _%1
    _%1:
 %endmacro
+%define AUTHORING
+%define SINGLE_TICK_RENDERING
 %define SAMPLE_RATE	44100
 %define MAX_INSTRUMENTS	10
 %define MAX_VOICES 1

@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <termios.h>
 #include <OpenAL/al.h>
+#include <pthread.h>
 #include "alut.h"
 #include "4klang/4klang.inh"
 #include "shader.minified.frag"
@@ -164,6 +165,68 @@ void unpack1bit(const uint8_t* src, uint8_t* dst, int length)
 	}
 }
 
+#define NUM_BUFFERS 4 
+
+typedef struct _play_context
+{
+	SAMPLE_TYPE buffer4kl[SAMPLES_PER_TICK*2];
+	ALuint source,buffers[NUM_BUFFERS];
+	int running, complete;
+} _play_context;
+
+void audio_play(void * context){
+	struct _play_context * ctx = (_play_context *) context;
+
+	_4klang_current_tick = 0;
+
+	while (!ctx->running) {
+		usleep(10000);
+	}
+
+	for (unsigned int i = 0; i < NUM_BUFFERS; ++i) {
+		_4klang_render(ctx->buffer4kl);
+		alBufferData(ctx->buffers[i], AL_FORMAT_STEREO16, ctx->buffer4kl, sizeof(SAMPLE_TYPE)*SAMPLES_PER_TICK*2, 44100);
+		alSourceQueueBuffers(ctx->source, 1, &ctx->buffers[i]);
+
+		if (_4klang_current_tick == 0)
+			break;
+	}
+
+	alSourcePlay(ctx->source);
+
+	if (_4klang_current_tick == 0) {
+		ctx->complete = 1;
+	}
+
+	unsigned int current_buffer = 0;
+
+	while (!ctx->complete) {
+		ALint number_processed = 0;
+
+		while (number_processed < 1) {
+			alGetSourcei(ctx->source, AL_BUFFERS_PROCESSED, &number_processed);
+			usleep(1000);
+		}
+
+		{
+			_4klang_render(ctx->buffer4kl);
+
+			ALuint uiBuffer = 0;
+
+			alSourceUnqueueBuffers(ctx->source, 1, &uiBuffer);
+			alBufferData(uiBuffer, AL_FORMAT_STEREO16, ctx->buffer4kl, sizeof(SAMPLE_TYPE)*SAMPLES_PER_TICK*2, 44100);
+			alSourceQueueBuffers(ctx->source, 1, &uiBuffer);
+
+			++current_buffer;
+
+			if (_4klang_current_tick == 0) {
+				ctx->complete = 1;
+				break;
+			}
+		}
+	}
+}
+
 int main(){
 	const int kWidth = 40;
 	const int kHeight = 24;
@@ -175,39 +238,6 @@ int main(){
 	printf("display is %d x %d\n", kWidth, kHeight);
 	printf("press enter to continue...\n");
 	getchar();
-#endif
-
-#if defined(HAS_AUDIO)
-	static SAMPLE_TYPE buffer4kl[MAX_SAMPLES*2];
-
-	#if defined(LOAD_AUDIO)
-		FILE* fh = fopen("audio.bin", "rb");
-		if(fh){
-			fread(buffer4kl, sizeof(SAMPLE_TYPE), MAX_SAMPLES*2, fh);
-			fclose(fh);
-		}else{
-			puts("failed to load precalc'd audio");
-			exit(1);
-		}
-	#elif defined(THREADED_AUDIO)
-		// this doesn't work
-		static pthread_t synthRenderThread; 
-		if (pthread_create(&synthRenderThread, NULL, (threadfunc_t)_4klang_render, buffer4kl)) { 
-			fprintf(stderr, "pthread_create() failed\n");
-			exit(1);
-		}
-	#else
-		puts("I still didn't figure out how to thread the audio, sorry for the precalc~~~~~~~~");
-		_4klang_render(buffer4kl);
-	#endif
-
-	#if defined(SAVE_AUDIO)
-	FILE* fh = fopen("audio.bin", "wb");
-	if(fh){
-		fwrite(buffer4kl, sizeof(SAMPLE_TYPE), MAX_SAMPLES*2, fh);
-		fclose(fh);
-	}
-	#endif
 #endif
 
 	// fix up emoji widths
@@ -285,27 +315,48 @@ int main(){
 
 	shaderProgram = shaderCompile(shader_frag);
 
-	ALuint source,buffer;
+	static _play_context play_context = {0};
+
 	alutInit(0,0);
-	alGenSources(1,&source);
-	alGenBuffers(1,&buffer);
-	alBufferData(buffer, AL_FORMAT_STEREO16, buffer4kl, sizeof(SAMPLE_TYPE)*MAX_SAMPLES*2, 44100);
-	alSourcei(source, AL_BUFFER, buffer);
-	
+	alGenSources(1,&play_context.source);
+	alGenBuffers(NUM_BUFFERS,&play_context.buffers);
+	play_context.running = 0;
+	play_context.complete = 0;
+
+#if defined(HAS_AUDIO)
+	static pthread_t synthRenderThread; 
+	if (pthread_create(&synthRenderThread, NULL, audio_play, &play_context)) { 
+		fprintf(stderr, "pthread_create() failed\n");
+		exit(1);
+	}
+#endif
+
 	// set background black - this chokes performance massively on vscode for some reason
 	//fputs(ansiEscapeBackgroundBlack,stdout);
 
 	fputs(ansiEscapeClearScreen,stdout);  // clear full screen
 	fputs(ansiEscapeCursorReset,stdout);  // reset cursor
 
-	alSourcePlay(source);
+	play_context.running = 1;
 	float lastBeat;
 	for(int iFrame=0;;++iFrame)
 	{
+		float iTime_offset;
+		int samplePosition_offset;
+		alGetSourcef(play_context.source, AL_SEC_OFFSET, &iTime_offset);
+		alGetSourcei(play_context.source, AL_SAMPLE_OFFSET, &samplePosition_offset);
+
 		float iTime;
 		int samplePosition;
-		alGetSourcef(source,AL_SEC_OFFSET,&iTime);
-		alGetSourcei(source, AL_SAMPLE_OFFSET, &samplePosition);
+		long current_tick = _4klang_current_tick;
+		if (current_tick < 4) current_tick = 0;
+		else current_tick -= 4;
+		samplePosition = SAMPLES_PER_TICK * current_tick;
+		iTime = (float)(samplePosition) / 44100.0;
+
+		samplePosition += samplePosition_offset;
+		iTime += iTime_offset;
+
 		float iBeat = (float)((double)samplePosition / SAMPLES_PER_BEAT);
 
 		glUseProgram(shaderProgram);
@@ -337,9 +388,7 @@ int main(){
 
 		lastBeat = iBeat;
 
-		int state;
-		alGetSourcei(source, AL_SOURCE_STATE, &state);
-		if (state!=AL_PLAYING)
+		if (play_context.complete)
 			break;
 	}
 }

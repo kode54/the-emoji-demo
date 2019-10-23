@@ -18,10 +18,11 @@ define shelldrop
 	@strip $(1)
 	@mv $(1) '__'
 	@gzip -v -9 '__'
-	@echo "cp \044\060 /tmp/z;(sed 1d \044\060|zcat" > $(1)
+	@echo "#!/bin/sh" > $(1)
+	@echo "cp \044\060 /tmp/z;(sed 1,2d \044\060|zcat" >> $(1)
 	@cat '__.gz' >> $(1)
 	@rm '__.gz'
-	@printf '\x29\x3e\x24\x5f\x3b\x24\x5f\x0a' | dd of=$(1) bs=1 seek=0x21 count=8 conv=notrunc
+	@printf '\x29\x3e\x24\x5f\x3b\x24\x5f\x0a' | dd of=$(1) bs=1 seek=0x2d count=8 conv=notrunc
 	@chmod +x $(1)
 endef
 
@@ -29,7 +30,7 @@ endef
 	cd 4klang && yasm -fmacho64 4klang.asm
 
 shader.minified.frag: shader.frag Makefile
-	mono /Users/will/Downloads/shader_minifier.exe shader.frag -v -o shader.minified.frag --no-renaming-list I,main
+	mono ${HOME}/Downloads/shader_minifier.exe shader.frag -v -o shader.minified.frag --no-renaming-list I,main
 
 textmode-debug: main.c shader.minified.frag 4klang/4klang.o Makefile
 	clang main.c 4klang/4klang.o -o textmode-debug -O3 -framework OpenAL -framework OpenGL -DDEBUG -DHAS_AUDIO -DLOAD_AUDIO

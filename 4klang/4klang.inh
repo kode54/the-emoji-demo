@@ -11,16 +11,15 @@
 #define POLYPHONY 1
 #define INTEGER_16BIT
 #define SAMPLE_TYPE short
+#define SINGLE_TICK_RENDERING
 
 #define MACOSX_OBJECT
 
 // declaration of the external synth render function, you'll always need that
 extern void* _4klang_render(void*);
-// declaration of the external envelope buffer. access only if you're song was exported with that option
-extern float _4klang_envelope_buffer;
-// declaration of the external note buffer. access only if you're song was exported with that option
-extern int   _4klang_note_buffer;
 
-extern long _4klang_current_tick;
+#ifdef SINGLE_TICK_RENDERING
+extern int _4klang_current_tick;
+#endif
 
 #define SAMPLES_PER_BEAT 15204

@@ -17,7 +17,7 @@ yx-the-emoji-demo.zip: textmode-final nfo.txt
 define shelldrop
 	@strip $(1)
 	@mv $(1) '__'
-	@7za a -tgzip -mx=9 '__.gz' '__'
+	@7zz a -tgzip -mx=9 '__.gz' '__'
 	@rm '__'
 	@echo "#!/bin/sh" > $(1)
 	@echo "cp \044\060 /tmp/z;(sed 1,2d \044\060|zcat" >> $(1)
@@ -27,14 +27,14 @@ define shelldrop
 	@chmod +x $(1)
 endef
 
-4klang/4klang.o: 4klang/4klang.asm 4klang/4klang.inc
-	cd 4klang && yasm -fmacho64 4klang.asm
+4klang/4klang.o: 4klang/4klang.c 4klang/4klang.inh 4klang/4klang_song.h
+	cd 4klang && clang 4klang.c -c -O3 -o 4klang.o
 
 shader.minified.frag: shader.frag Makefile
 	mono ${HOME}/Downloads/shader_minifier.exe shader.frag -v -o shader.minified.frag --no-renaming-list I,main
 
 textmode-debug: main.c shader.minified.frag 4klang/4klang.o Makefile
-	clang main.c 4klang/4klang.o -o textmode-debug -O3 -framework OpenAL -framework OpenGL -DDEBUG -DHAS_AUDIO -DLOAD_AUDIO
+	clang main.c 4klang/4klang.o -o textmode-debug -O0 -framework OpenAL -framework OpenGL -DDEBUG -DHAS_AUDIO -DLOAD_AUDIO
 
 textmode-final: main.c shader.minified.frag 4klang/4klang.o Makefile
 	clang main.c 4klang/4klang.o -o textmode-final -O3 -Wl,-dead_strip -framework OpenAL -framework OpenGL -DHAS_AUDIO

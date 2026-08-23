@@ -16,11 +16,11 @@
 #include "4klang/4klang.inh"
 #include "shader.minified.frag"
 
-const char* ansiEscapeClearScreen = "\033[2J";
-const char* ansiEscapeCursorReset = "\033[0;0H";
-const char* ansiEscapeQueryCursor = "\033[6n";
+static const char* ansiEscapeClearScreen = "\033[2J";
+static const char* ansiEscapeCursorReset = "\033[0;0H";
+static const char* ansiEscapeQueryCursor = "\033[6n";
 
-const char* iEmojiAtlas[]={
+static const char* iEmojiAtlas[]={
 /*  0 */ "🔴", // rainbow
 /*  1 */ "😡", // rainbow
 /*  2 */ "🤗", // rainbow
@@ -91,9 +91,9 @@ const char* iEmojiAtlas[]={
 #if defined(DEBUG)
 static_assert(ATLAS_SIZE==64,"Atlas must be 64 entries");
 #endif
-char* iFixedEmojiAtlas[ATLAS_SIZE];
+static char* iFixedEmojiAtlas[ATLAS_SIZE];
 
-GLint shaderCompile(const char* fragmentSource)
+static GLint shaderCompile(const char* fragmentSource)
 {
 	#if defined(DEBUG)
 		if(!strstr(fragmentSource, "void main()"))
@@ -133,8 +133,8 @@ GLint shaderCompile(const char* fragmentSource)
 }
 
 // need to disable line-buffering for the size measuring to work
-struct termios old_tio, new_tio;
-void disableLineBuffering(){
+static struct termios old_tio, new_tio;
+static void disableLineBuffering(){
 	// http://shtrom.ssji.net/skb/getc.html
 	unsigned char c;
 	tcgetattr(STDIN_FILENO,&old_tio);
@@ -143,12 +143,12 @@ void disableLineBuffering(){
 	tcsetattr(STDIN_FILENO,TCSANOW,&new_tio);
 }
 
-void restoreLineBuffering(){
+static void restoreLineBuffering(){
 	// http://shtrom.ssji.net/skb/getc.html
 	tcsetattr(STDIN_FILENO,TCSANOW,&old_tio);
 }
 
-int queryRenderedWidth(const char* str){
+static int queryRenderedWidth(const char* str){
 	// awful hack to special-case for U+3000 Ideographic Space
 	if(*(uint32_t*)str == 0x008080E3)
 		return 2;
@@ -158,7 +158,7 @@ int queryRenderedWidth(const char* str){
 	return x - 1;
 }
 
-void unpack1bit(const uint8_t* src, uint8_t* dst, int length)
+static void unpack1bit(const uint8_t* src, uint8_t* dst, int length)
 {
 	for(int i=0;i<length;++i){
 		dst[i] = ((src[i/8]>>(i%8))&1) ? 255 : 0;
@@ -174,7 +174,7 @@ typedef struct _play_context
 	int running, complete;
 } _play_context;
 
-void audio_play(void * context){
+static void* audio_play(void * context){
 	struct _play_context * ctx = (_play_context *) context;
 
 	_4klang_current_tick = 0;
@@ -225,6 +225,8 @@ void audio_play(void * context){
 			}
 		}
 	}
+
+	return 0;
 }
 
 int main(){
@@ -325,7 +327,7 @@ int main(){
 
 #if defined(HAS_AUDIO)
 	static pthread_t synthRenderThread; 
-	if (pthread_create(&synthRenderThread, NULL, audio_play, &play_context)) { 
+	if (pthread_create(&synthRenderThread, NULL, &audio_play, &play_context)) { 
 		fprintf(stderr, "pthread_create() failed\n");
 		exit(1);
 	}
